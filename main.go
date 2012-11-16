@@ -110,14 +110,19 @@ func report(lines chan string, batches chan []string, drops, reads *uint64) {
 }
 
 func main() {
-	frontBuff := flag.Int("front-buff", 0, "Number of messages to buffer in log-shuttle's input chanel.")
-	batchSize := flag.Int("batch-size", 50, "Number of messages to pack into a logplex http request.")
-	wait := flag.Int("wait", 500, "Number of ms to flush messages to logplex")
+	frontBuff := *flag.Int("front-buff", 0, "Number of messages to buffer in log-shuttle's input chanel.")
+	batchSize := *flag.Int("batch-size", 50, "Number of messages to pack into a logplex http request.")
+	wait := *flag.Int("wait", 500, "Number of ms to flush messages to logplex")
+	workerCount := *flag.Int("workers", 1, "Number of concurrent outlet workers (and HTTP connections)")
 	socket := flag.String("socket", "", "Location of UNIX domain socket.")
 	logplexToken := flag.String("logplex-token", "abc123", "Secret logplex token.")
 	procid := flag.String("procid", "", "The procid for the syslog payload")
-	skipHeaders := flag.Bool("skip-headers", false, "Skip the prepending of rfc5424 headers.")
+	skipHeaders := *flag.Bool("skip-headers", false, "Skip the prepending of rfc5424 headers.")
 	flag.Parse()
+
+	if workerCount < 1 {
+		workerCount = 1 // workerCount needs to be >= 1
+	}
 
 	logplexUrl, err := url.Parse(os.Getenv("LOGPLEX_URL"))
 	if err != nil {
@@ -132,11 +137,13 @@ func main() {
 	var drops uint64 = 0 //count the number of droped lines
 	var reads uint64 = 0 //count the number of read lines
 	batches := make(chan []string)
-	lines := make(chan string, *frontBuff)
+	lines := make(chan string, frontBuff)
 
 	go report(lines, batches, &drops, &reads)
-	go handle(lines, batches, *batchSize, *wait)
-	go outlet(batches, *logplexToken, logplexUrl.String(), *procid, *skipHeaders)
+	go handle(lines, batches, batchSize, wait)
+	for i := 0; i < workerCount; i++ {
+		go outlet(batches, *logplexToken, logplexUrl.String(), *procid, skipHeaders)
+	}
 
 	if len(*socket) == 0 {
 		read(os.Stdin, lines, &drops, &reads)
