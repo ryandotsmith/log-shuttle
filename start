@@ -1,0 +1,7 @@
+#!/bin/sh
+
+export LOGPLEX_URL=https://east.logplex.io/logs
+echo "$1"
+rm -rf /tmp/log-shuttle
+./log-shuttle -socket="/tmp/log-shuttle" -procid="log-shuttle.test" \
+  -logplex-token="$1" > /dev/null
