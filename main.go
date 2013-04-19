@@ -85,7 +85,12 @@ func prepare(w io.Writer, batch []string) {
 		} else {
 			packet = msg
 		}
-		fmt.Fprintf(w, "%d %s", len(packet), packet)
+
+		//It is possible for the packet to be empty in the
+		//case the user skipped headers and passed in a \n.
+		if len(packet) > 0 {
+			fmt.Fprintf(w, "%d %s", len(packet), packet)
+		}
 	}
 }
 
